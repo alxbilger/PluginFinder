@@ -202,7 +202,7 @@ void writeRequiredPlugins(const char* const appName, const std::string& inputFil
 
                     for (const auto& [plugin, components] : allRequiredPlugins)
                     {
-                        if (!components.empty() && *components.begin() != "RequiredPlugin")
+                        if (!components.empty() && plugin != "Sofa.Simulation.Core")
                         {
                             std::stringstream ss;
                             ss << indentation << "<RequiredPlugin name=\"" << plugin << "\"/> <!-- Needed to use components [" << components << "] -->\n";
