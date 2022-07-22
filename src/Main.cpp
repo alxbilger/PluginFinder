@@ -8,7 +8,7 @@
 
 #include <sofa/simulation/config.h>
 #include <sofa/simulation/Node.h>
-#include <SofaSimulationCommon/SceneLoaderXML.h>
+#include <sofa/simulation/common/SceneLoaderXML.h>
 
 #include <sofa/core/logging/PerComponentLoggingMessageHandler.h>
 #include <sofa/helper/logging/LoggingMessageHandler.h>
@@ -18,11 +18,8 @@
 #include <sofa/helper/system/FileRepository.h>
 #include <sofa/helper/system/PluginManager.h>
 #include <SofaBase/initSofaBase.h>
-#include <SofaGraphComponent/SceneCheckerListener.h>
-#include <SofaGraphComponent/SceneCheckerVisitor.h>
-#include <SofaGraphComponent/SceneCheckMissingRequiredPlugin.h>
-#include <SofaSimulationGraph/DAGSimulation.h>
-#include <SofaSimulationGraph/init.h>
+#include <sofa/simulation/graph/DAGSimulation.h>
+#include <sofa/simulation/graph/init.h>
 
 void loadPlugins(const char* const appName);
 void getAllInputFiles(const char* const appName, const std::vector<std::string>& input, std::vector<std::string>& allFiles);
