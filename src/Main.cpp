@@ -17,7 +17,6 @@
 #include <sofa/helper/BackTrace.h>
 #include <sofa/helper/system/FileRepository.h>
 #include <sofa/helper/system/PluginManager.h>
-#include <SofaBase/initSofaBase.h>
 #include <sofa/simulation/graph/DAGSimulation.h>
 #include <sofa/simulation/graph/init.h>
 
