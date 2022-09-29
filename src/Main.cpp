@@ -10,7 +10,6 @@
 #include <sofa/simulation/Node.h>
 #include <sofa/simulation/common/SceneLoaderXML.h>
 
-#include <sofa/core/logging/PerComponentLoggingMessageHandler.h>
 #include <sofa/helper/logging/LoggingMessageHandler.h>
 
 #include <sofa/core/ObjectFactory.h>
@@ -20,12 +19,13 @@
 #include <sofa/simulation/graph/DAGSimulation.h>
 #include <sofa/simulation/graph/init.h>
 
-void loadPlugins(const char* const appName);
+#include "ErrorCountingMessageHandler.h"
+
+void loadPlugins(const char* const appName, const std::vector<std::string>& pluginsToLoad);
 void getAllInputFiles(const char* const appName, const std::vector<std::string>& input, std::vector<std::string>& allFiles);
 void findPluginsFromNode(sofa::simulation::NodeSPtr root, std::map<std::string, std::set<std::string> >& allRequiredPlugins);
 void writeRequiredPlugins(const char* const appName, const std::string& inputFile, std::map<std::string, std::set<std::string> >& allRequiredPlugins);
-
-
+void replaceInFile(const std::string& in, const std::map<std::string, std::string>& map);
 
 int main(int argc, char** argv)
 {
@@ -34,6 +34,7 @@ int main(int argc, char** argv)
     options.add_options()
         ("verbose", "Verbose")
         ("h,help", "print usage")
+        ("l,load", "load given plugins", cxxopts::value<std::vector<std::string>>())
         ("input", "Input file(s) or directory",
                 cxxopts::value<std::vector<std::string>>());
 
@@ -61,7 +62,18 @@ int main(int argc, char** argv)
 
     sofa::simulation::setSimulation(new sofa::simulation::graph::DAGSimulation());
 
-    loadPlugins(appName);
+    const auto pluginsToLoad = result["load"].as<std::vector<std::string>>();
+    loadPlugins(appName, pluginsToLoad);
+
+    std::map<std::string, std::string > aliases; //key: alias, value: original name
+    sofa::core::ObjectFactory::getInstance()->setCallback([&aliases](sofa::core::Base* o, sofa::core::objectmodel::BaseObjectDescription *arg)
+    {
+        const std::string typeNameInScene = arg->getAttribute("type", "");
+        if ( typeNameInScene != o->getClassName() )
+        {
+            aliases[typeNameInScene] = o->getClassName();
+        }
+    });
 
     const auto input = result["input"].as<std::vector<std::string>>();
     const auto verbose = result["verbose"].as<bool>();
@@ -69,6 +81,8 @@ int main(int argc, char** argv)
     std::vector<std::string> allFiles;
 
     getAllInputFiles(appName, input, allFiles);
+
+    std::map<sofa::helper::logging::Message::Type, std::vector<std::string> > filesWithMessages;
 
     for (auto& in : allFiles)
     {
@@ -82,6 +96,9 @@ int main(int argc, char** argv)
             msg_error(appName) << "Cannot load file " << in;
             continue;
         }
+
+        ErrorCountingMessageHandler countingMessageHandler;
+
         sofa::simulation::NodeSPtr root;
         try
         {
@@ -93,24 +110,78 @@ int main(int argc, char** argv)
             continue;
         }
 
-
         if (!root)
         {
             msg_error(appName) << "Could not load file " << in;
+        }
+
+        if (countingMessageHandler.getCount(sofa::helper::logging::Message::Type::Error) > 0)
+        {
+            msg_info(appName) << "Error during loading of file " << in << ": skip";
+            filesWithMessages[sofa::helper::logging::Message::Type::Error].push_back(in);
+            continue;
+        }
+        if (countingMessageHandler.getCount(sofa::helper::logging::Message::Type::Fatal) > 0)
+        {
+            msg_info(appName) << "Error during loading of file " << in << ": skip";
+            filesWithMessages[sofa::helper::logging::Message::Type::Fatal].push_back(in);
+            continue;
+        }
+        for (const auto type : {sofa::helper::logging::Message::Type::Advice, sofa::helper::logging::Message::Type::Deprecated, sofa::helper::logging::Message::Type::Info, sofa::helper::logging::Message::Type::Warning})
+        {
+            if (countingMessageHandler.getCount(type))
+            {
+                filesWithMessages[type].push_back(in);
+            }
         }
 
         std::map<std::string, std::set<std::string> > allRequiredPlugins;
 
         findPluginsFromNode(root, allRequiredPlugins);
         writeRequiredPlugins(appName, in, allRequiredPlugins);
+
+        if (!aliases.empty())
+        {
+            replaceInFile(in, aliases);
+        }
+
+        aliases.clear();
+    }
+
+    if (!filesWithMessages.empty())
+    {
+
+        for (const auto& [type, files] : filesWithMessages)
+        {
+            std::stringstream ss;
+            for (const auto& file : files)
+            {
+                ss << '\t' << file << '\n';
+            }
+            static std::map<sofa::helper::logging::Message::Type, std::string> messageType{
+                {sofa::helper::logging::Message::Type::Advice, "advice"},
+                {sofa::helper::logging::Message::Type::Deprecated, "deprecated"},
+                {sofa::helper::logging::Message::Type::Error, "error"},
+                {sofa::helper::logging::Message::Type::Fatal, "fatal"},
+                {sofa::helper::logging::Message::Type::Info, "info"},
+                {sofa::helper::logging::Message::Type::Warning, "warning"},
+            };
+            msg_info(appName) << "Found " << files.size() << " files with " << messageType[type] << ":\n" << ss.str();
+        }
+
     }
 
     sofa::simulation::graph::cleanup();
     return 0;
 }
 
-void loadPlugins(const char* const appName)
+void loadPlugins(const char* const appName, const std::vector<std::string>& pluginsToLoad)
 {
+    for (const auto& plugin : pluginsToLoad)
+    {
+        sofa::helper::system::PluginManager::getInstance().loadPlugin(plugin);
+    }
+
     std::string configPluginPath = "plugin_list.conf";
     std::string defaultConfigPluginPath = "plugin_list.conf.default";
     if (sofa::helper::system::PluginRepository.findFile(configPluginPath, "", nullptr))
@@ -236,4 +307,52 @@ void writeRequiredPlugins(const char* const appName, const std::string& inputFil
     else msg_error(appName) << "Unable to open file to write " << inputFile;
 
     ofs.close();
+}
+
+void replaceInFile(const std::string& in, const std::map<std::string, std::string>& aliases)
+{
+    std::ifstream ifs;
+    ifs.open( in, std::ios::in );  // input file stream
+
+    std::vector<std::string> newFileLines;
+
+    if(ifs)
+    {
+        std::string line;
+        while ( !ifs.eof() )
+        {
+            std::getline ( ifs, line);
+
+            for (const auto& [alias, componentName] : aliases)
+            {
+                const auto pos = line.find("<" + alias);
+                if (pos != std::string::npos)
+                {
+                    line.replace(pos, alias.size() + 1, "<" + componentName);
+                }
+            }
+
+            newFileLines.push_back(line + '\n');
+        }
+
+        if (!newFileLines.empty())
+        {
+            newFileLines.back() = newFileLines.back().substr(0, newFileLines.back().rfind("\n"));
+        }
+
+        ifs.close();
+    }
+
+    std::cout << *newFileLines.begin() << std::endl;
+
+    std::ofstream ofs;
+    ofs.open( in);
+    if (ofs)
+    {
+        for (const auto& l : newFileLines)
+        {
+            ofs << l;
+        }
+        ofs.close();
+    }
 }

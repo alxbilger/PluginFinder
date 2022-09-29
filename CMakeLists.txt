@@ -7,7 +7,7 @@ sofa_find_package(Sofa.Simulation.Graph REQUIRED)
 
 set(PLUGINFINDER_SRC "src")
 
-set(HEADER_FILES "")
+set(HEADER_FILES ${PLUGINFINDER_SRC}/ErrorCountingMessageHandler.h)
 set(SOURCE_FILES ${PLUGINFINDER_SRC}/Main.cpp)
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
