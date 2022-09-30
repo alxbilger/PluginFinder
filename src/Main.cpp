@@ -325,10 +325,10 @@ void replaceInFile(const std::string& in, const std::map<std::string, std::strin
 
             for (const auto& [alias, componentName] : aliases)
             {
-                const auto pos = line.find("<" + alias);
+                const auto pos = line.find("<" + alias + " ");
                 if (pos != std::string::npos)
                 {
-                    line.replace(pos, alias.size() + 1, "<" + componentName);
+                    line.replace(pos, alias.size() + 1, "<" + componentName + " ");
                 }
             }
 
