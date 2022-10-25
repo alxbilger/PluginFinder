@@ -62,7 +62,12 @@ int main(int argc, char** argv)
 
     sofa::simulation::setSimulation(new sofa::simulation::graph::DAGSimulation());
 
-    const auto pluginsToLoad = result["load"].as<std::vector<std::string>>();
+    std::vector<std::string> pluginsToLoad;
+    if (result.count("load"))
+    {
+        pluginsToLoad = result["load"].as<std::vector<std::string>>();
+
+    }
     loadPlugins(appName, pluginsToLoad);
 
     std::map<std::string, std::string > aliases; //key: alias, value: original name
