@@ -60,7 +60,6 @@ int main(int argc, char** argv)
     sofa::helper::BackTrace::autodump();
     sofa::simulation::graph::init();
 
-    sofa::simulation::setSimulation(new sofa::simulation::graph::DAGSimulation());
 
     std::vector<std::string> pluginsToLoad;
     if (result.count("load"))
