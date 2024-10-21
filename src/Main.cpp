@@ -170,7 +170,32 @@ int main(int argc, char** argv)
                 {sofa::helper::logging::Message::Type::Info, "info"},
                 {sofa::helper::logging::Message::Type::Warning, "warning"},
             };
-            msg_info(appName) << "Found " << files.size() << " files with " << messageType[type] << ":\n" << ss.str();
+            const auto message = "Found " + std::to_string(files.size()) + " files with " + messageType[type] + ":\n" + ss.str();
+
+            switch (type)
+            {
+            case sofa::helper::logging::Message::Info:
+                msg_info(appName) << message;
+                break;
+            case sofa::helper::logging::Message::Advice:
+                msg_advice(appName) << message;
+                break;
+            case sofa::helper::logging::Message::Deprecated:
+                msg_deprecated(appName) << message;
+                break;
+            case sofa::helper::logging::Message::Warning:
+                msg_warning(appName) << message;
+                break;
+            case sofa::helper::logging::Message::Error:
+                msg_error(appName) << message;
+                break;
+            case sofa::helper::logging::Message::Fatal:
+                msg_fatal(appName) << message;
+                break;
+            default:
+                msg_info(appName) << message;
+                break;
+            }
         }
 
     }
